@@ -1,104 +1,48 @@
-#include <Wire.h>
-#include <BH1750.h>
-
-BH1750 lightSensor;
-
-#define TRIGGER_PIN 17
-#define ECHO_PIN 5
-#define LED_PIN 18
-#define BUTTON_PIN 13
-
-#define MEASUREMENT_INTERVAL 1000
-unsigned long previousMillis = 0;
-
-const int ledPin1 = LED_PIN;
-volatile bool buttonPressed = false;
-volatile bool isBh1750Active = true;
-
-void IRAM_ATTR handleButtonInterrupt() 
-{
-  buttonPressed = true;
-}
+const int pirPin = 2;    // PIR sensor connected to digital pin 2
+const int ledPin1 = 4;   // Red LED connected to digital pin 3
+const int ledPin2 = 5;   // Blue LED connected to digital pin 4
+int sensorValue = 0;
 
 void setup() 
 {
-  Serial.begin(115200);
-  Wire.begin();
-  lightSensor.begin();
-
+  Serial.begin(9600);
+  
+  pinMode(3, INPUT);
+  pinMode(pirPin, INPUT);
   pinMode(ledPin1, OUTPUT);
-
-  pinMode(TRIGGER_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
-  pinMode(LED_PIN, OUTPUT);
-
-  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), handleButtonInterrupt, FALLING);
+  pinMode(ledPin2, OUTPUT);
+  
+  // Attach interrupt to sensor pin
+  attachInterrupt(digitalPinToInterrupt(pirPin), PirTriggered, RISING); 
+  attachInterrupt(digitalPinToInterrupt(3), PhotoTriggered, RISING);
+  // CHANGE mode for both rising and falling edges
 }
 
 void loop() 
 {
-  if (isBh1750Active) 
+  // No need for constant sensor reading in loop, interrupt handles it
+}
+
+// Interrupt service routine (ISR) triggered when sensor value changes
+
+void PirTriggered() 
+{
+  if (digitalRead(pirPin) == HIGH)  // Motion detected
   {
-    float lux = lightSensor.readLightLevel();
-
-    while (lux < 30) 
-    {
-      digitalWrite(ledPin1, HIGH);
-      Serial.println(" Detection ");
-
-      delay(800);
-
-      lux = lightSensor.readLightLevel();
-    }
-
-    digitalWrite(ledPin1, LOW);
-  } 
-  
-  else 
-  {
-    long duration, distance;
-    unsigned long currentMillis = millis();
-
-    if (currentMillis - previousMillis >= MEASUREMENT_INTERVAL) 
-    {
-      previousMillis = currentMillis;
-
-      digitalWrite(TRIGGER_PIN, LOW);
-      delayMicroseconds(2);
-      digitalWrite(TRIGGER_PIN, HIGH);
-      delayMicroseconds(10);
-      digitalWrite(TRIGGER_PIN, LOW);
-
-      duration = pulseIn(ECHO_PIN, HIGH);
-      distance = duration * 0.034 / 2;
-
-      Serial.print("Distance: ");
-      Serial.print(distance);
-      Serial.println(" cm");
-
-      if (distance < 10) 
-      {
-        digitalWrite(LED_PIN, HIGH);
-      }
-
-      else 
-      {
-        digitalWrite(LED_PIN, LOW);
-      }
-    }
+    digitalWrite(ledPin1, HIGH);   // Red LED on
+    digitalWrite(ledPin2, LOW);    // Blue LED off
+    Serial.println("Person At Door !!!");
   }
+}
 
-  if (buttonPressed) 
+void PhotoTriggered()
+{
+  sensorValue = digitalRead(3);
+  
+  if(sensorValue)   // Sunlight Detected
   {
-    buttonPressed = false;  // Reset the button state
-
-    // Toggle between sensors
-    isBh1750Active = !isBh1750Active;
-
-    Serial.println(" INTERRUPTION !!! SENSOR SWITCH !!!");
-
-    // Add a delay to debounce the button
-    delay(500);
+    Serial.println("Sunlight Detected");
+    digitalWrite(ledPin1, LOW);    // Red LED off
+    digitalWrite(ledPin2, HIGH);   // Blue LED on
   }
 }
